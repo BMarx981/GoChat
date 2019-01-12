@@ -18,7 +18,7 @@ func Receive(ws *websocket.Conn) {
 			break
 		}
 
-		fmt.Printf("%s \n", reply)
+		fmt.Printf("%s \n", json)
 
 		// if err = websocket.Message.Send(ws, reply); err != nil {
 		// 	fmt.Println("Can't send")
