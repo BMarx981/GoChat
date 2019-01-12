@@ -8,6 +8,15 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+var broadcast = make(chan Message)
+
+type Message struct {
+	text      string   `json:"message"`
+	email     string   `json:"email"`
+	receivers []string `json:"receivers"`
+	userName  string   `json:"userName"`
+}
+
 func Receive(ws *websocket.Conn) {
 	var err error
 	var json string
