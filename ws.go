@@ -1,15 +1,17 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 
-	"golang.org/x/net/websocket"
+	"github.com/gorilla/websocket"
+	//"golang.org/x/net/websocket"
 )
 
 var broadcast = make(chan Message)
+var clients = make(map[*websocket.Conn]bool) //connected clients
+var upgrader = websocket.Upgrader{}
 
 type Message struct {
 	text      string   `json:"message"`
@@ -18,28 +20,40 @@ type Message struct {
 	userName  string   `json:"userName"`
 }
 
-func Receive(ws *websocket.Conn) {
+func receiveMessages(write http.ResponseWriter, req *http.Request) {
 	var err error
-	var jsonString string
+	// var jsonString string
+	var msg Message
+	// var receivers []interface{}
+	// var text string
+	// var email string
+	// var userName string
 
+	ws, err := upgrader.Upgrade(write, req, nil)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	defer ws.Close()
 	for {
-		if err = websocket.Message.Receive(ws, &jsonString); err != nil {
-			fmt.Println("Can't receive")
-			break
-		}
+		err = ws.ReadJSON(&msg)
+		fmt.Println(msg)
+		fmt.Println("next line ************")
 
-		fmt.Printf("Initial json = %s \n", jsonString)
+		// if err = websocket.Message.Receive(ws, &jsonString); err != nil {
+		// 	fmt.Println("Can't receive")
+		// 	break
+		// }
 
-		byt := []byte(jsonString)
+		// fmt.Printf("Initial json = %s \n", jsonString)
+		// text, email, userName = getMessageData(jsonString, &receivers)
 
-		var dat map[string]interface{}
+		// clientsList := make([]string, len(receivers))
+		// for i, v := range receivers {
+		// 	clientsList[i] = v.(string)
+		// 	fmt.Println(clientsList[i])
+		// }
 
-		if err := json.Unmarshal(byt, &dat); err != nil {
-			panic(err)
-		}
-
-		recText := dat["message"].(string)
-		fmt.Println(recText)
 		// if err = websocket.Message.Send(ws, reply); err != nil {
 		// 	fmt.Println("Can't send")
 		// 	break
@@ -47,8 +61,25 @@ func Receive(ws *websocket.Conn) {
 	}
 }
 
+// func getMessageData(jsonString string, receivers *[]interface{}) (string, string, string) {
+// 	byt := []byte(jsonString)
+//
+// 	var dat map[string]interface{}
+//
+// 	if err := json.Unmarshal(byt, &dat); err != nil {
+// 		panic(err)
+// 	}
+//
+// 	var text = dat["message"].(string)
+// 	var email = dat["email"].(string)
+// 	var userName = dat["username"].(string)
+// 	*receivers = dat["receivers"].([]interface{})
+// 	fmt.Println(text + " = text\n" + email + " = email\n" + userName + " = username")
+// 	return text, email, userName
+// }
+
 func main() {
-	http.Handle("/", websocket.Handler(Receive))
+	http.HandleFunc("/", receiveMessages)
 
 	if err := http.ListenAndServe(":8081", nil); err != nil {
 		log.Fatal("ListenAndServe:", err)
