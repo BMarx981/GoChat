@@ -78,8 +78,26 @@ func receiveMessages(write http.ResponseWriter, req *http.Request) {
 // 	return text, email, userName
 // }
 
+func handleMessages() {
+	for {
+		//Grab the next message from the broadcast channel
+		msg := <-broadcast
+		//Send it out to every client that is currently connected
+		for client := range clients {
+			err := client.WriteJSON(msg)
+			if err != nil {
+				log.Printf("error: %v", err)
+				client.Close()
+				delete(clients, client)
+			}
+		}
+	}
+}
+
 func main() {
 	http.HandleFunc("/", receiveMessages)
+
+	go handleMessages()
 
 	if err := http.ListenAndServe(":8081", nil); err != nil {
 		log.Fatal("ListenAndServe:", err)
