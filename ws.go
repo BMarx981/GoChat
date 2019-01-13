@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -19,16 +20,26 @@ type Message struct {
 
 func Receive(ws *websocket.Conn) {
 	var err error
-	var json string
+	var jsonString string
 
 	for {
-		if err = websocket.Message.Receive(ws, &json); err != nil {
+		if err = websocket.Message.Receive(ws, &jsonString); err != nil {
 			fmt.Println("Can't receive")
 			break
 		}
 
-		fmt.Printf("%s \n", json)
+		fmt.Printf("Initial json = %s \n", jsonString)
 
+		byt := []byte(jsonString)
+
+		var dat map[string]interface{}
+
+		if err := json.Unmarshal(byt, &dat); err != nil {
+			panic(err)
+		}
+
+		recText := dat["message"].(string)
+		fmt.Println(recText)
 		// if err = websocket.Message.Send(ws, reply); err != nil {
 		// 	fmt.Println("Can't send")
 		// 	break
