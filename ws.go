@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,7 +10,7 @@ import (
 	//"golang.org/x/net/websocket"
 )
 
-var broadcast = make(chan Message)
+var broadcast = make(chan string)
 var clients = make(map[*websocket.Conn]bool) //connected clients
 var upgrader = websocket.Upgrader{}
 
@@ -17,17 +18,13 @@ type Message struct {
 	text      string   `json:"message"`
 	email     string   `json:"email"`
 	receivers []string `json:"receivers"`
-	userName  string   `json:"userName"`
+	userName  string   `json:"username"`
 }
 
 func receiveMessages(write http.ResponseWriter, req *http.Request) {
 	var err error
-	// var jsonString string
-	var msg Message
-	// var receivers []interface{}
-	// var text string
-	// var email string
-	// var userName string
+	// var msg string
+	// var dat map[string]interface{}
 
 	ws, err := upgrader.Upgrade(write, req, nil)
 	if err != nil {
@@ -36,28 +33,52 @@ func receiveMessages(write http.ResponseWriter, req *http.Request) {
 
 	defer ws.Close()
 	for {
-		err = ws.ReadJSON(&msg)
-		fmt.Println(msg)
-		fmt.Println("next line ************")
+		text := getJsonMessage(ws)
+		fmt.Println(text)
+		broadcast <- text
+	}
+}
 
-		// if err = websocket.Message.Receive(ws, &jsonString); err != nil {
-		// 	fmt.Println("Can't receive")
-		// 	break
-		// }
+func getJsonMessage(sock *websocket.Conn) string {
+	_, byt, err := sock.ReadMessage()
+	if err != nil {
+		fmt.Println(err)
+	}
 
-		// fmt.Printf("Initial json = %s \n", jsonString)
-		// text, email, userName = getMessageData(jsonString, &receivers)
+	var dat map[string]interface{}
 
-		// clientsList := make([]string, len(receivers))
-		// for i, v := range receivers {
-		// 	clientsList[i] = v.(string)
-		// 	fmt.Println(clientsList[i])
-		// }
+	if err := json.Unmarshal(byt, &dat); err != nil {
+		panic(err)
+	}
+	text := dat["message"].(string)
+	return text
+}
 
-		// if err = websocket.Message.Send(ws, reply); err != nil {
-		// 	fmt.Println("Can't send")
-		// 	break
-		// }
+func handleMessages() {
+	for {
+		//Grab the next message from the broadcast channel
+		text := <-broadcast
+		fmt.Println(text)
+		fmt.Println("Reached here")
+		//Send it out to every client that is currently connected
+		for client := range clients {
+			err := client.WriteJSON(text)
+			if err != nil {
+				log.Printf("error: %v", err)
+				client.Close()
+				delete(clients, client)
+			}
+		}
+	}
+}
+
+func main() {
+	http.HandleFunc("/", receiveMessages)
+
+	go handleMessages()
+
+	if err := http.ListenAndServe(":8081", nil); err != nil {
+		log.Fatal("ListenAndServe:", err)
 	}
 }
 
@@ -77,29 +98,3 @@ func receiveMessages(write http.ResponseWriter, req *http.Request) {
 // 	fmt.Println(text + " = text\n" + email + " = email\n" + userName + " = username")
 // 	return text, email, userName
 // }
-
-func handleMessages() {
-	for {
-		//Grab the next message from the broadcast channel
-		msg := <-broadcast
-		//Send it out to every client that is currently connected
-		for client := range clients {
-			err := client.WriteJSON(msg)
-			if err != nil {
-				log.Printf("error: %v", err)
-				client.Close()
-				delete(clients, client)
-			}
-		}
-	}
-}
-
-func main() {
-	http.HandleFunc("/", receiveMessages)
-
-	go handleMessages()
-
-	if err := http.ListenAndServe(":8081", nil); err != nil {
-		log.Fatal("ListenAndServe:", err)
-	}
-}
